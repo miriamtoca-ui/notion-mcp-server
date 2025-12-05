@@ -1,0 +1,15 @@
+{
+  "name": "notion-mcp-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server-http.js",
+  "scripts": {
+    "start": "node server-http.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.23.0",
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2"
+  }
+}
