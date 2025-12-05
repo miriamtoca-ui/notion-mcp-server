@@ -1,8 +1,9 @@
 import express from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server";
-import { HttpServerTransport } from "@modelcontextprotocol/sdk/server/http.js";
+import { HttpServerTransport } from "@modelcontextprotocol/sdk/server/http";
 import dotenv from "dotenv";
 import { registerHandlers } from "./tools.js";
+
 
 dotenv.config();
 
