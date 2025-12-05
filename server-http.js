@@ -1,45 +1,30 @@
 import express from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server";
-import { HttpServerTransport } from "@modelcontextprotocol/sdk/server/http";
+import { HttpServerTransport } from "@modelcontextprotocol/sdk/server/http.js";
 import dotenv from "dotenv";
+import { registerHandlers } from "./tools.js";
 
 dotenv.config();
 
-const PORT = process.env.PORT || 3000;
-
-// -------------------------------------------------------------------
-// Cargamos tu servidor MCP REAL (el de index.js)
-// -------------------------------------------------------------------
-import "./index.js";  
-// Este archivo registra tools en el MCP global del SDK
-
-// -------------------------------------------------------------------
-// Creamos el transporte HTTP
-// -------------------------------------------------------------------
+const PORT = process.env.PORT || 8080;
 const app = express();
 app.use(express.json());
 
+// Create HTTP transport for MCP
 const transport = new HttpServerTransport(app);
 
-// -------------------------------------------------------------------
-// Creamos el servidor MCP HTTP
-// -------------------------------------------------------------------
+// Create MCP server instance
 const server = new McpServer({
   name: "notion-mcp-server",
   version: "1.0.0",
 });
 
-// IMPORTANTE: registramos capacidades para que Agent Builder vea tools
-server.registerCapabilities({
-  tools: true
-});
+// Register tools and handlers
+registerHandlers(server);
 
-// Conectamos el servidor MCP al transporte HTTP
+// Connect MCP server to HTTP transport
 await server.connect(transport);
 
-// -------------------------------------------------------------------
-// Arrancamos Express
-// -------------------------------------------------------------------
 app.listen(PORT, () => {
-  console.log(`✅ MCP HTTP Server running on port ${PORT}`);
+  console.log(`MCP HTTP Server running on port ${PORT}`);
 });
