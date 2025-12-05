@@ -1,48 +1,45 @@
 import express from "express";
-import { spawn } from "child_process";
+import { McpServer } from "@modelcontextprotocol/sdk/server";
+import { HttpServerTransport } from "@modelcontextprotocol/sdk/server/http";
+import dotenv from "dotenv";
 
+dotenv.config();
+
+const PORT = process.env.PORT || 3000;
+
+// -------------------------------------------------------------------
+// Cargamos tu servidor MCP REAL (el de index.js)
+// -------------------------------------------------------------------
+import "./index.js";  
+// Este archivo registra tools en el MCP global del SDK
+
+// -------------------------------------------------------------------
+// Creamos el transporte HTTP
+// -------------------------------------------------------------------
 const app = express();
 app.use(express.json());
 
-// Lanzamos tu MCP (que usa STDIO)
-const mcpProcess = spawn("node", ["index.js"], {
-  stdio: ["pipe", "pipe", "pipe"]
+const transport = new HttpServerTransport(app);
+
+// -------------------------------------------------------------------
+// Creamos el servidor MCP HTTP
+// -------------------------------------------------------------------
+const server = new McpServer({
+  name: "notion-mcp-server",
+  version: "1.0.0",
 });
 
-// Para almacenar respuestas parciales del MCP
-let buffer = "";
-
-// Recibir datos desde el MCP
-mcpProcess.stdout.on("data", (data) => {
-  buffer += data.toString();
+// IMPORTANTE: registramos capacidades para que Agent Builder vea tools
+server.registerCapabilities({
+  tools: true
 });
 
-// Endpoint estándar para MCPs HTTP
-app.post("/mcp", async (req, res) => {
-  try {
-    const payload = JSON.stringify(req.body);
+// Conectamos el servidor MCP al transporte HTTP
+await server.connect(transport);
 
-    // Enviar al MCP por STDIN
-    mcpProcess.stdin.write(payload + "\n");
-
-    // Esperar la respuesta del MCP
-    const check = () => {
-      try {
-        const json = JSON.parse(buffer);
-        buffer = ""; // limpiar
-        return res.json(json);
-      } catch {
-        setTimeout(check, 30);
-      }
-    };
-
-    check();
-
-  } catch (e) {
-    res.status(500).json({ error: "Error procesando la solicitud", details: e.toString() });
-  }
+// -------------------------------------------------------------------
+// Arrancamos Express
+// -------------------------------------------------------------------
+app.listen(PORT, () => {
+  console.log(`✅ MCP HTTP Server running on port ${PORT}`);
 });
-
-// Puerto para Render/Railway
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("MCP HTTP Gateway running on port", PORT));
