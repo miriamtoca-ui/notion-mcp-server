@@ -2,7 +2,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import { McpServer } from "@modelcontextprotocol/sdk/server";
-import { HttpServerTransport } from "@modelcontextprotocol/sdk/server/http";
+import { HttpServerTransport } from "@modelcontextprotocol/sdk/server/http.js";
 import { registerHandlers } from "./tools.js";
 
 dotenv.config();
