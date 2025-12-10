@@ -6,54 +6,29 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
-app.get("/debug-env", (req, res) => {
-  res.json(process.env);
-});
 
 // ============================================================================
-//  1) Cargar tools desde tools.js
+// Cargar tools desde tools.js
 // ============================================================================
-
-const TOOLS = {};  // aquí guardaremos { name: { schema, handler } }
+const TOOLS = {};
 
 function loadTools() {
   const collector = {
     tool(name, schema, handler) {
       TOOLS[name] = { schema, handler };
     },
-    registerCapabilities() {} // ignoramos, no necesario aquí
+    registerCapabilities() {}
   };
 
-  // Ejecuta registerHandlers para rellenar TOOLS
   registerHandlers(collector);
 }
 
 loadTools();
 
 // ============================================================================
-//  2) Endpoint raíz opcional
+// listTools helper (GET y POST deben devolver lo mismo)
 // ============================================================================
-app.get("/", (_, res) => {
-  res.send("MCP HTTP server running");
-});
-
-// ============================================================================
-//  3) /mcp  (metainformación del servidor)
-// ============================================================================
-app.get("/mcp", (req, res) => {
-  res.json({
-    protocol: "MCP",
-    version: "0.1",
-    capabilities: {
-      tools: {}
-    }
-  });
-});
-
-// ============================================================================
-//  4) /mcp/tools  (lista de herramientas)
-// ============================================================================
-app.get("/mcp/tools", (req, res) => {
+function listTools(req, res) {
   const toolsList = Object.entries(TOOLS).map(([name, { schema }]) => ({
     name,
     description: schema.description || "",
@@ -61,23 +36,45 @@ app.get("/mcp/tools", (req, res) => {
   }));
 
   res.json({ tools: toolsList });
+}
+
+// ============================================================================
+// /mcp (metadata) — GET y POST
+// ============================================================================
+app.get("/mcp", (req, res) => {
+  res.json({
+    protocol: "MCP",
+    version: "0.1",
+    capabilities: { tools: {} }
+  });
+});
+
+app.post("/mcp", (req, res) => {
+  res.json({
+    protocol: "MCP",
+    version: "0.1",
+    capabilities: { tools: {} }
+  });
 });
 
 // ============================================================================
-//  5) /mcp/call  (ejecuta una tool)
+// /mcp/tools — GET y POST
+// ============================================================================
+app.get("/mcp/tools", listTools);
+app.post("/mcp/tools", listTools);
+
+// ============================================================================
+// /mcp/call — POST (Agent Builder usa solo POST)
 // ============================================================================
 app.post("/mcp/call", async (req, res) => {
   try {
     const { name, arguments: args } = req.body;
 
     if (!TOOLS[name]) {
-      return res.status(400).json({
-        error: `Tool '${name}' not found`
-      });
+      return res.status(400).json({ error: `Tool '${name}' not found` });
     }
 
     const { handler } = TOOLS[name];
-
     const result = await handler(args || {});
 
     res.json(result);
@@ -92,7 +89,7 @@ app.post("/mcp/call", async (req, res) => {
 });
 
 // ============================================================================
-//  6) Arrancar servidor
+// Arrancar servidor
 // ============================================================================
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
