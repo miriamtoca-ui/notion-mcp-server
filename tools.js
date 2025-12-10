@@ -1,116 +1,134 @@
-// tools.js
-const NOTION_TOKEN = process.env.NOTION_TOKEN;
-const DATABASE_ID = process.env.NOTION_DATABASE_ID || "2b704d5815c48030bf12f039d1a06893";
+// tools.js — versión corregida para MCP HTTP manual
 const NOTION_API_BASE = "https://api.notion.com/v1";
 
-if (!NOTION_TOKEN) {
-  throw new Error("Missing NOTION_TOKEN env var");
+function getNotionToken() {
+  const token = process.env.NOTION_TOKEN;
+  if (!token) {
+    throw new Error("NOTION_TOKEN is missing — set it in Railway > Service > Variables");
+  }
+  return token;
 }
-if (!DATABASE_ID) {
-  throw new Error("Missing DATABASE_ID env var");
+
+function getDatabaseId() {
+  return process.env.NOTION_DATABASE_ID || "2b704d5815c48030bf12f039d1a06893";
 }
 
 export function registerHandlers(server) {
+  // MCP capabilities (Agent Builder lo requiere)
   server.registerCapabilities({
-    tools: {},
+    tools: {}
   });
 
+  // ---------------------------------------------------------------------------
+  //  PING
+  // ---------------------------------------------------------------------------
   server.tool(
     "ping",
     {
       description: "Comprueba si el servidor MCP está vivo",
-      inputSchema: {
+      input_schema: {
         type: "object",
         properties: {
-          message: { type: "string" },
+          message: { type: "string" }
         },
-        required: ["message"],
-      },
+        required: ["message"]
+      }
     },
     async ({ message }) => ({
-      content: [{ type: "text", text: `Pong: ${message}` }],
-    }),
+      content: [{ type: "text", text: `Pong: ${message}` }]
+    })
   );
 
+  // ---------------------------------------------------------------------------
+  //  CREATE DOCUMENT
+  // ---------------------------------------------------------------------------
   server.tool(
     "create_document",
     {
       description: "Crea un registro completo en Notion. El título es obligatorio.",
-      inputSchema: documentInputSchema({ requiresId: false }),
+      input_schema: documentInputSchema({ requiresId: false })
     },
     async (args) => {
       validateTitle(args.title);
 
       const body = {
-        parent: { database_id: DATABASE_ID },
-        properties: mapProperties(args),
+        parent: { database_id: getDatabaseId() },
+        properties: mapProperties(args)
       };
 
       const res = await notionRequest("POST", `${NOTION_API_BASE}/pages`, body);
       return {
-        content: [{ type: "text", text: `Creado correctamente: ${res.url}` }],
+        content: [{ type: "text", text: `Creado correctamente: ${res.url}` }]
       };
-    },
+    }
   );
 
+  // ---------------------------------------------------------------------------
+  //  GET DOCUMENT
+  // ---------------------------------------------------------------------------
   server.tool(
     "get_document",
     {
       description: "Obtiene un documento completo desde Notion por ID",
-      inputSchema: {
+      input_schema: {
         type: "object",
         properties: { notionId: { type: "string" } },
-        required: ["notionId"],
-      },
+        required: ["notionId"]
+      }
     },
     async ({ notionId }) => {
       const res = await notionRequest("GET", `${NOTION_API_BASE}/pages/${notionId}`);
       return {
-        content: [{ type: "text", text: JSON.stringify(res, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(res, null, 2) }]
       };
-    },
+    }
   );
 
+  // ---------------------------------------------------------------------------
+  //  UPDATE DOCUMENT
+  // ---------------------------------------------------------------------------
   server.tool(
     "update_document",
     {
       description: "Actualiza propiedades de un documento Notion existente",
-      inputSchema: documentInputSchema({ requiresId: true }),
+      input_schema: documentInputSchema({ requiresId: true })
     },
     async ({ notionId, ...rest }) => {
       const properties = mapProperties(rest);
-      delete properties["Título"]; // no sobreescribir el título si no viene
+      delete properties["Título"]; // evitar sobrescribir título si no viene
 
-      await notionRequest("PATCH", `${NOTION_API_BASE}/pages/${notionId}`, {
-        properties,
-      });
+      await notionRequest("PATCH", `${NOTION_API_BASE}/pages/${notionId}`, { properties });
 
       return {
-        content: [{ type: "text", text: "Actualizado correctamente" }],
+        content: [{ type: "text", text: "Actualizado correctamente" }]
       };
-    },
+    }
   );
 }
 
-// -----------------------------------------------------------------------------
-// Helpers
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// HELPERS
+// ---------------------------------------------------------------------------
 
 async function notionRequest(method, url, body) {
+  const NOTION_TOKEN = getNotionToken();
+
   const response = await fetch(url, {
     method,
     headers: {
       Authorization: `Bearer ${NOTION_TOKEN}`,
       "Content-Type": "application/json",
-      "Notion-Version": "2022-06-28",
+      "Notion-Version": "2022-06-28"
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? JSON.stringify(body) : undefined
   });
 
   const data = await response.json();
+
   if (!response.ok || data?.object === "error") {
     throw new Error(data?.message || `Notion API error (${response.status})`);
   }
+
   return data;
 }
 
@@ -142,9 +160,9 @@ function documentInputSchema({ requiresId }) {
       documentId: { type: "string" },
       notes: { type: "string" },
       agentReview: { type: "string" },
-      period: { type: "string" },
+      period: { type: "string" }
     },
-    required: requiresId ? ["notionId"] : ["title"],
+    required: requiresId ? ["notionId"] : ["title"]
   };
 }
 
@@ -167,7 +185,7 @@ function mapProperties(args) {
     "ID del documento": args.documentId ? { rich_text: [{ text: { content: args.documentId } }] } : undefined,
     "Notas": args.notes ? { rich_text: [{ text: { content: args.notes } }] } : { rich_text: [] },
     "Revisión agente": args.agentReview ? { rich_text: [{ text: { content: args.agentReview } }] } : undefined,
-    "Periodo fiscal": args.period ? { rich_text: [{ text: { content: args.period } }] } : undefined,
+    "Periodo fiscal": args.period ? { rich_text: [{ text: { content: args.period } }] } : undefined
   };
 }
 
