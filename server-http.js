@@ -1,5 +1,3 @@
-// server-http.js — MCP HTTP Spec compatible (Agent Builder ready)
-
 import express from "express";
 import dotenv from "dotenv";
 import { registerHandlers } from "./tools.js";
@@ -25,43 +23,44 @@ function loadTools() {
 
 loadTools();
 
-// ----------------------------------------------------------------------------
-// MCP 0.1 — REQUIRED ENDPOINTS FOR AGENT BUILDER
-// ----------------------------------------------------------------------------
-
-// 1) INITIALIZE
+// -----------------------------------------------------------------------------
+// MCP 0.1 — initialize
+// -----------------------------------------------------------------------------
 app.post("/mcp/initialize", (req, res) => {
   res.json({
     protocol: "mcp",
     version: "0.1",
     capabilities: {
-      tools: true
+      tools: {
+        list: true,
+        call: true
+      }
     }
   });
 });
 
-// 2) LIST TOOLS  (Agent Builder uses this, not /mcp/tools)
+// -----------------------------------------------------------------------------
+// MCP 0.1 — list_tools
+// -----------------------------------------------------------------------------
 app.post("/mcp/list_tools", (req, res) => {
-  const toolsList = Object.entries(TOOLS).map(([name, { schema }]) => ({
+  const tools = Object.entries(TOOLS).map(([name, { schema }]) => ({
     name,
     description: schema.description || "",
     input_schema: schema.inputSchema || schema.input_schema || {}
   }));
 
-  res.json({
-    tools: toolsList
-  });
+  res.json({ tools });
 });
 
-// 3) CALL TOOL
+// -----------------------------------------------------------------------------
+// MCP 0.1 — call_tool
+// -----------------------------------------------------------------------------
 app.post("/mcp/call_tool", async (req, res) => {
   try {
     const { name, arguments: args } = req.body;
 
     if (!TOOLS[name]) {
-      return res.status(400).json({
-        error: `Unknown tool '${name}'`
-      });
+      return res.status(400).json({ error: `Unknown tool '${name}'` });
     }
 
     const { handler } = TOOLS[name];
@@ -79,20 +78,9 @@ app.post("/mcp/call_tool", async (req, res) => {
   }
 });
 
-// ----------------------------------------------------------------------------
-// Optional: debugging endpoints
-// ----------------------------------------------------------------------------
-app.get("/", (_, res) => res.send("MCP server running"));
-
-app.get("/mcp/tools", (req, res) => {
-  res.json({
-    tools: Object.keys(TOOLS)
-  });
-});
-
-// ----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Start server
-// ----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 MCP HTTP Server ready on port ${PORT}`);
