@@ -1,36 +1,41 @@
-// tools.js — versión corregida para MCP HTTP manual
+// tools.js — versión final estable para MCP HTTP manual
 const NOTION_API_BASE = "https://api.notion.com/v1";
 
+// ---------------------------------------------------------------------------
+// GET ENVIRONMENT VARIABLES
+// ---------------------------------------------------------------------------
 function getNotionToken() {
   const token = process.env.NOTION_TOKEN;
   if (!token) {
-    throw new Error("NOTION_TOKEN is missing — set it in Railway > Service > Variables");
+    throw new Error("NOTION_TOKEN is missing — set it in Railway Variables.");
   }
   return token;
 }
 
 function getDatabaseId() {
-  return process.env.NOTION_DATABASE_ID || "2b704d5815c48030bf12f039d1a06893";
+  const id = process.env.NOTION_DATABASE_ID || "2b704d5815c48030bf12f039d1a06893";
+  if (!id) {
+    throw new Error("NOTION_DATABASE_ID is missing — set it in Railway.");
+  }
+  return id;
 }
 
+// ---------------------------------------------------------------------------
+// REGISTER ALL TOOLS
+// ---------------------------------------------------------------------------
 export function registerHandlers(server) {
-  // MCP capabilities (Agent Builder lo requiere)
-  server.registerCapabilities({
-    tools: {}
-  });
+  server.registerCapabilities({ tools: {} });
 
-  // ---------------------------------------------------------------------------
-  //  PING
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // PING
+  // -------------------------------------------------------------------------
   server.tool(
     "ping",
     {
       description: "Comprueba si el servidor MCP está vivo",
       input_schema: {
         type: "object",
-        properties: {
-          message: { type: "string" }
-        },
+        properties: { message: { type: "string" } },
         required: ["message"]
       }
     },
@@ -39,9 +44,9 @@ export function registerHandlers(server) {
     })
   );
 
-  // ---------------------------------------------------------------------------
-  //  CREATE DOCUMENT
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // CREATE DOCUMENT
+  // -------------------------------------------------------------------------
   server.tool(
     "create_document",
     {
@@ -57,15 +62,16 @@ export function registerHandlers(server) {
       };
 
       const res = await notionRequest("POST", `${NOTION_API_BASE}/pages`, body);
+
       return {
         content: [{ type: "text", text: `Creado correctamente: ${res.url}` }]
       };
     }
   );
 
-  // ---------------------------------------------------------------------------
-  //  GET DOCUMENT
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // GET DOCUMENT
+  // -------------------------------------------------------------------------
   server.tool(
     "get_document",
     {
@@ -84,9 +90,9 @@ export function registerHandlers(server) {
     }
   );
 
-  // ---------------------------------------------------------------------------
-  //  UPDATE DOCUMENT
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // UPDATE DOCUMENT
+  // -------------------------------------------------------------------------
   server.tool(
     "update_document",
     {
@@ -95,7 +101,7 @@ export function registerHandlers(server) {
     },
     async ({ notionId, ...rest }) => {
       const properties = mapProperties(rest);
-      delete properties["Título"]; // evitar sobrescribir título si no viene
+      delete properties["Título"]; // No sobrescribir título si no viene
 
       await notionRequest("PATCH", `${NOTION_API_BASE}/pages/${notionId}`, { properties });
 
@@ -109,7 +115,6 @@ export function registerHandlers(server) {
 // ---------------------------------------------------------------------------
 // HELPERS
 // ---------------------------------------------------------------------------
-
 async function notionRequest(method, url, body) {
   const NOTION_TOKEN = getNotionToken();
 
@@ -189,4 +194,4 @@ function mapProperties(args) {
   };
 }
 
-const isNum = (value) => typeof value === "number" && !Number.isNaN(value);
+const isNum = (v) => typeof v === "number" && !Number.isNaN(v);
