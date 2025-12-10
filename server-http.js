@@ -7,7 +7,6 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// Load tools
 const TOOLS = {};
 
 function loadTools() {
@@ -17,71 +16,72 @@ function loadTools() {
     },
     registerCapabilities() {}
   };
-
   registerHandlers(collector);
 }
 
 loadTools();
 
-// -----------------------------------------------------------------------------
-// MCP 0.1 — initialize
-// -----------------------------------------------------------------------------
+// --------------------------
+// MCP REQUIRED ENDPOINTS
+// --------------------------
+
+// 1) initialize
 app.post("/mcp/initialize", (req, res) => {
   res.json({
-    protocol: "mcp",
-    version: "0.1",
+    protocol: "MCP",
+    version: "1.0",
     capabilities: {
-      tools: {
-        list: true,
-        call: true
-      }
+      tools: {}
     }
   });
 });
 
-// -----------------------------------------------------------------------------
-// MCP 0.1 — list_tools
-// -----------------------------------------------------------------------------
+// 2) list_tools  (THIS IS WHAT WORKFLOWS CALL)
 app.post("/mcp/list_tools", (req, res) => {
-  const tools = Object.entries(TOOLS).map(([name, { schema }]) => ({
+  const toolsList = Object.entries(TOOLS).map(([name, { schema }]) => ({
     name,
     description: schema.description || "",
     input_schema: schema.inputSchema || schema.input_schema || {}
   }));
 
-  res.json({ tools });
+  res.json({ tools: toolsList });
 });
 
-// -----------------------------------------------------------------------------
-// MCP 0.1 — call_tool
-// -----------------------------------------------------------------------------
+// 3) call_tool
 app.post("/mcp/call_tool", async (req, res) => {
   try {
     const { name, arguments: args } = req.body;
 
     if (!TOOLS[name]) {
-      return res.status(400).json({ error: `Unknown tool '${name}'` });
+      return res.status(400).json({
+        error: `Tool '${name}' not found`
+      });
     }
 
     const { handler } = TOOLS[name];
     const result = await handler(args || {});
 
     res.json({
-      content: result.content || []
+      content: result.content || [],
+      is_error: false
     });
 
   } catch (err) {
     res.status(500).json({
+      is_error: true,
       error: "Tool execution error",
       message: err.message
     });
   }
 });
 
-// -----------------------------------------------------------------------------
+// Optional healthcheck
+app.get("/", (req, res) => {
+  res.send("MCP HTTP server OK");
+});
+
 // Start server
-// -----------------------------------------------------------------------------
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`🚀 MCP HTTP Server ready on port ${PORT}`);
+  console.log(`🚀 MCP HTTP server ready on port ${PORT}`);
 });
