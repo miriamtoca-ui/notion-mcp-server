@@ -1,7 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
 import { registerHandlers } from "./tools.js";
-import fetch from "node-fetch";
 
 dotenv.config();
 
