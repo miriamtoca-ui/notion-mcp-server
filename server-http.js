@@ -1,40 +1,97 @@
-// server-http.js
 import express from "express";
 import dotenv from "dotenv";
-import { McpServer } from "@modelcontextprotocol/sdk/server";
-import { HttpServerTransport } from "@modelcontextprotocol/sdk/server/http.js";
 import { registerHandlers } from "./tools.js";
 
 dotenv.config();
 
-async function bootstrap() {
-  const app = express();
-  app.use(express.json());
+const app = express();
+app.use(express.json());
 
-  // Opcional: healthcheck rápido
-  app.get("/", (_req, res) => res.send("Notion MCP HTTP server up"));
+// ============================================================================
+//  1) Cargar tools desde tools.js
+// ============================================================================
 
-  const server = new McpServer({
-    name: "notion-mcp-server",
-    version: "2.0.0",
-  });
+const TOOLS = {};  // aquí guardaremos { name: { schema, handler } }
 
-  registerHandlers(server);          // ← aquí se registran todas tus tools
+function loadTools() {
+  const collector = {
+    tool(name, schema, handler) {
+      TOOLS[name] = { schema, handler };
+    },
+    registerCapabilities() {} // ignoramos, no necesario aquí
+  };
 
-  const transport = new HttpServerTransport({
-    app,                             // se engancha al Express existente
-    path: "/mcp",                    // Agent Builder llamará a https://tu-url/mcp
-  });
-
-  await server.connect(transport);   // expone automáticamente /mcp, /mcp/tools, /mcp/call
-
-  const PORT = process.env.PORT || 8080;
-  app.listen(PORT, () => {
-    console.log(`✅ MCP HTTP server listening on port ${PORT} (path /mcp)`);
-  });
+  // Ejecuta registerHandlers para rellenar TOOLS
+  registerHandlers(collector);
 }
 
-bootstrap().catch((err) => {
-  console.error("❌ Failed to start MCP HTTP server:", err);
-  process.exit(1);
+loadTools();
+
+// ============================================================================
+//  2) Endpoint raíz opcional
+// ============================================================================
+app.get("/", (_, res) => {
+  res.send("MCP HTTP server running");
+});
+
+// ============================================================================
+//  3) /mcp  (metainformación del servidor)
+// ============================================================================
+app.get("/mcp", (req, res) => {
+  res.json({
+    protocol: "MCP",
+    version: "0.1",
+    capabilities: {
+      tools: {}
+    }
+  });
+});
+
+// ============================================================================
+//  4) /mcp/tools  (lista de herramientas)
+// ============================================================================
+app.get("/mcp/tools", (req, res) => {
+  const toolsList = Object.entries(TOOLS).map(([name, { schema }]) => ({
+    name,
+    description: schema.description || "",
+    input_schema: schema.inputSchema || schema.input_schema || {}
+  }));
+
+  res.json({ tools: toolsList });
+});
+
+// ============================================================================
+//  5) /mcp/call  (ejecuta una tool)
+// ============================================================================
+app.post("/mcp/call", async (req, res) => {
+  try {
+    const { name, arguments: args } = req.body;
+
+    if (!TOOLS[name]) {
+      return res.status(400).json({
+        error: `Tool '${name}' not found`
+      });
+    }
+
+    const { handler } = TOOLS[name];
+
+    const result = await handler(args || {});
+
+    res.json(result);
+
+  } catch (err) {
+    res.status(500).json({
+      error: "Tool execution error",
+      message: err.message,
+      stack: err.stack
+    });
+  }
+});
+
+// ============================================================================
+//  6) Arrancar servidor
+// ============================================================================
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log(`🚀 MCP HTTP server ready on port ${PORT}`);
 });
