@@ -6,25 +6,25 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
-// LOGGING MIDDLEWARE – para ver todo el tráfico en Railway
+
+// LOGGING — para ver tráfico real en Railway
 app.use((req, res, next) => {
   console.log(`➡️ ${req.method} ${req.url}`);
   next();
 });
 
 // -----------------------------
-//  CONFIGURACIÓN NOTION
+//  VALIDACIÓN NOTION
 // -----------------------------
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
-if (!NOTION_TOKEN) {
-  console.error("❌ FALTA NOTION_TOKEN en variables de entorno.");
-}
-if (!DATABASE_ID) {
-  console.error("❌ FALTA NOTION_DATABASE_ID en variables de entorno.");
-}
+if (!NOTION_TOKEN) console.error("❌ FALTA NOTION_TOKEN.");
+if (!DATABASE_ID) console.error("❌ FALTA NOTION_DATABASE_ID.");
 
+// ------------------------------------------------------
+//  CREAR PÁGINA EN NOTION (usado por /ingest)
+// ------------------------------------------------------
 async function createNotionPage(data) {
   const url = "https://api.notion.com/v1/pages";
 
@@ -32,11 +32,7 @@ async function createNotionPage(data) {
     parent: { database_id: DATABASE_ID },
     properties: {
       "Título": {
-        title: [
-          {
-            text: { content: data.titulo || "(sin título)" }
-          }
-        ]
+        title: [{ text: { content: data.titulo || "(sin título)" } }]
       },
       "Tipo de documento": data.tipo_documento
         ? { rich_text: [{ text: { content: data.tipo_documento } }] }
@@ -64,9 +60,7 @@ async function createNotionPage(data) {
       "Método de pago": data.metodo_pago
         ? { rich_text: [{ text: { content: data.metodo_pago } }] }
         : undefined,
-      "Enlace": data.enlace_archivo
-        ? { url: data.enlace_archivo }
-        : undefined,
+      "Enlace": data.enlace_archivo ? { url: data.enlace_archivo } : undefined,
       "Notas": data.notas
         ? { rich_text: [{ text: { content: data.notas } }] }
         : { rich_text: [] }
@@ -83,12 +77,11 @@ async function createNotionPage(data) {
     body: JSON.stringify(body)
   });
 
-  const result = await response.json();
-  return result;
+  return await response.json();
 }
 
 // -----------------------------
-//  MCP SERVIDOR
+//  MCP — CARGA DE TOOLS
 // -----------------------------
 const TOOLS = {};
 
@@ -99,52 +92,52 @@ function loadTools() {
     },
     registerCapabilities() {}
   };
+
   registerHandlers(collector);
 }
 
 loadTools();
 
-// --------------------------
-// MCP REQUIRED ENDPOINTS
-// --------------------------
+// -----------------------------
+//  MCP ENDPOINTS REALES
+// -----------------------------
 
+// 1) initialize
 app.post("/mcp/initialize", (req, res) => {
   res.json({
     protocol: "MCP",
     version: "1.0",
-    capabilities: {
-      tools: {}
-    }
+    capabilities: { tools: {} }
   });
 });
 
-app.post("/mcp/list_tools", (req, res) => {
+// 2) list_tools  — AGENT BUILDER key endpoint
+function listTools(req, res) {
   const toolsList = Object.entries(TOOLS).map(([name, { schema }]) => ({
     name,
     description: schema.description || "",
-    input_schema: schema.inputSchema || schema.input_schema || {}
+    input_schema: schema.input_schema || {}
   }));
 
   res.json({ tools: toolsList });
-});
+}
 
+app.post("/mcp/list_tools", listTools);
+app.get("/mcp/list_tools", listTools);
+
+// 3) call_tool
 app.post("/mcp/call_tool", async (req, res) => {
   try {
     const { name, arguments: args } = req.body;
 
     if (!TOOLS[name]) {
-      return res.status(400).json({
-        error: `Tool '${name}' not found`
-      });
+      return res.status(400).json({ error: `Tool '${name}' not found` });
     }
 
     const { handler } = TOOLS[name];
     const result = await handler(args || {});
 
-    res.json({
-      content: result.content || [],
-      is_error: false
-    });
+    res.json({ content: result.content || [], is_error: false });
 
   } catch (err) {
     res.status(500).json({
@@ -156,20 +149,19 @@ app.post("/mcp/call_tool", async (req, res) => {
 });
 
 // -----------------------------------------------------
-//  INGEST ENDPOINT  (JSON automático del agente)
+//  INGEST ENDPOINT  (recibe JSON del agente lector)
 // -----------------------------------------------------
 app.post("/ingest", async (req, res) => {
   const data = req.body;
-
   console.log("📥 JSON recibido del agente:", data);
 
   try {
     const notionResponse = await createNotionPage(data);
-    console.log("✅ Página creada en Notion:", notionResponse.url);
+    console.log("✅ Página creada Notion:", notionResponse.url);
 
     res.json({
       ok: true,
-      message: "Documento procesado y enviado correctamente a Notion",
+      message: "Documento procesado y enviado a Notion",
       notion_url: notionResponse.url
     });
 
@@ -184,12 +176,12 @@ app.post("/ingest", async (req, res) => {
   }
 });
 
-// Optional healthcheck
+// healthcheck
 app.get("/", (req, res) => {
   res.send("MCP HTTP server OK");
 });
 
-// Start server
+// start server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 MCP HTTP server ready on port ${PORT}`);
