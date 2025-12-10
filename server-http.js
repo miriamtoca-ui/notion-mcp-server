@@ -6,6 +6,9 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
+app.get("/debug-env", (req, res) => {
+  res.json(process.env);
+});
 
 // ============================================================================
 //  1) Cargar tools desde tools.js
