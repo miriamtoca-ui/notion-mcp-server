@@ -75,13 +75,16 @@ app.post("/mcp/call_tool", async (req, res) => {
   }
 });
 
-// Optional healthcheck
-app.get("/", (req, res) => {
-  res.send("MCP HTTP server OK");
+// -----------------------------------------------------
+//  INGEST ENDPOINT  (para recibir JSON del agente)
+// -----------------------------------------------------
+app.post("/ingest", (req, res) => {
+  const data = req.body;
+
+  console.log("📥 JSON recibido del agente:", data);
+
+  // Respuesta al agente
+  res.json({ ok: true, message: "JSON recibido correctamente" });
 });
 
-// Start server
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`🚀 MCP HTTP server ready on port ${PORT}`);
-});
+// Optional healthche
